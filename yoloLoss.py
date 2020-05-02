@@ -47,14 +47,15 @@ class yoloLoss(nn.Module):
 
         iou = inter / (area1 + area2 - inter)
         return iou
+
     def forward(self,pred_tensor,target_tensor):
         '''
         pred_tensor: (tensor) size(batchsize,S,S,Bx5+20=30) [x,y,w,h,c]
         target_tensor: (tensor) size(batchsize,S,S,30)
         '''
-        N = pred_tensor.size()[0]
-        coo_mask = target_tensor[:,:,:,4] > 0
-        noo_mask = target_tensor[:,:,:,4] == 0
+        N = pred_tensor.size()[0]  # batch size
+        coo_mask = target_tensor[:,:,:,4] > 0  # 找出 GT 中那些 grid 有包含 object 的 center, size(batchsize, S, S)
+        noo_mask = target_tensor[:,:,:,4] == 0    # 找出 GT 中那些 grid 沒有包含 object 的 center, size(batchsize, S, S)
         coo_mask = coo_mask.unsqueeze(-1).expand_as(target_tensor)
         noo_mask = noo_mask.unsqueeze(-1).expand_as(target_tensor)
 
@@ -69,12 +70,12 @@ class yoloLoss(nn.Module):
         # compute not contain obj loss
         noo_pred = pred_tensor[noo_mask].view(-1,30)
         noo_target = target_tensor[noo_mask].view(-1,30)
-        noo_pred_mask = torch.cuda.ByteTensor(noo_pred.size())
+        noo_pred_mask = torch.cuda.ByteTensor(noo_pred.size())  # 轉成 torch.Tensor 且放到 device 中 (ByteTensor 表示只能用 8bits 表示的 int)
         noo_pred_mask.zero_()
         noo_pred_mask[:,4]=1;noo_pred_mask[:,9]=1
-        noo_pred_c = noo_pred[noo_pred_mask] #noo pred只需要计算 c 的损失 size[-1,2]
+        noo_pred_c = noo_pred[noo_pred_mask]  #noo pred只需要计算 c 的损失 size[-1,2] (只有 noo_pred_mask 是 1 的位置會被拉出來, 變一維陣列)
         noo_target_c = noo_target[noo_pred_mask]
-        nooobj_loss = F.mse_loss(noo_pred_c,noo_target_c,size_average=False)
+        nooobj_loss = F.mse_loss(noo_pred_c,noo_target_c,size_average=False)  # 不用開平方
 
         #compute contain obj loss
         coo_response_mask = torch.cuda.ByteTensor(box_target.size())

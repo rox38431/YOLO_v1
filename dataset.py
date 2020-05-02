@@ -35,13 +35,13 @@ class yoloDataset(data.Dataset):
             # Cat multiple list files together.
             # This is especially useful for voc07/voc12 combination.
             tmp_file = '/tmp/listfile.txt'
-            os.system('cat %s > %s' % (' '.join(list_file), tmp_file))
+            os.system('cat %s > %s' % (' '.join(list_file), tmp_file))  # 將兩 txt 的內容 concat 在一起
             list_file = tmp_file
 
         with open(list_file) as f:
             lines  = f.readlines()
 
-        for line in lines:
+        for line in lines:  # image_name [x1, y1, x2, y2, c], ...
             splited = line.strip().split()
             self.fnames.append(splited[0])
             num_boxes = (len(splited) - 1) // 5
@@ -61,11 +61,12 @@ class yoloDataset(data.Dataset):
 
     def __getitem__(self,idx):
         fname = self.fnames[idx]
-        img = cv2.imread(os.path.join(self.root+fname))
+        img = cv2.imread(os.path.join(self.root+fname))  # cv2 讀出的順序是 [height, width, channel], 且 channel 存放順序是 BGR
+                                                         # PIL 則是 [width, height]
         boxes = self.boxes[idx].clone()
         labels = self.labels[idx].clone()
 
-        if self.train:
+        if self.train:  # 當是在做 training 時才做 data augmentation
             #img = self.random_bright(img)
             img, boxes = self.random_flip(img, boxes)
             img,boxes = self.randomScale(img,boxes)
@@ -87,16 +88,17 @@ class yoloDataset(data.Dataset):
         # plt.imshow(img_show)
         # plt.show()
         # #debug
-        h,w,_ = img.shape
-        boxes /= torch.Tensor([w,h,w,h]).expand_as(boxes)
-        img = self.BGR2RGB(img) #because pytorch pretrained model use RGB
-        img = self.subMean(img,self.mean) #减去均值
-        img = cv2.resize(img,(self.image_size,self.image_size))
-        target = self.encoder(boxes,labels)# 7x7x30
-        for t in self.transform:
+        h, w, _ = img.shape
+        boxes /= torch.Tensor([w,h,w,h]).expand_as(boxes)  # 將 x, y 座標 normalize 到 0, 1 之間
+        img = self.BGR2RGB(img)  # because pytorch pretrained model use RGB
+        img = self.subMean(img, self.mean)  # 减去均值
+        img = cv2.resize(img, (self.image_size, self.image_size))
+        target = self.encoder(boxes,labels)  # 7x7x30, 將 bbox 資訊轉成 YOLO 可處理之形式
+        for t in self.transform:  # to torch.Tensor
             img = t(img)
 
         return img,target
+
     def __len__(self):
         return self.num_samples
 
@@ -108,22 +110,23 @@ class yoloDataset(data.Dataset):
         '''
         grid_num = 14
         target = torch.zeros((grid_num,grid_num,30))
-        cell_size = 1./grid_num
-        wh = boxes[:,2:]-boxes[:,:2]
-        cxcy = (boxes[:,2:]+boxes[:,:2])/2
-        for i in range(cxcy.size()[0]):
+        cell_size = 1. / grid_num
+        wh = boxes[:,2:]-boxes[:,:2]  # 得到 bbox 的 height, width
+        cxcy = (boxes[:,2:] + boxes[:,:2]) / 2  # bbox 的 center (這樣命名應該要是 cycx 吧?)
+        for i in range(cxcy.size()[0]):  # the num of bbox
             cxcy_sample = cxcy[i]
-            ij = (cxcy_sample/cell_size).ceil()-1 #
-            target[int(ij[1]),int(ij[0]),4] = 1
-            target[int(ij[1]),int(ij[0]),9] = 1
-            target[int(ij[1]),int(ij[0]),int(labels[i])+9] = 1
-            xy = ij*cell_size #匹配到的网格的左上角相对坐标
-            delta_xy = (cxcy_sample -xy)/cell_size
+            ij = (cxcy_sample/cell_size).ceil()-1  # 得到以 grid 為單位之情況下的座標
+            target[int(ij[1]),int(ij[0]),4] = 1  # 該 grid 中之 bbox1 之 confidence 設為 1
+            target[int(ij[1]),int(ij[0]),9] = 1  # 該 grid 中之 bbox2 之 confidence 設為 1
+            target[int(ij[1]),int(ij[0]),int(labels[i])+9] = 1 # 本應 +10，但因為 label 編碼從 1 開始，因此加 9
+            xy = ij*cell_size #匹配到的网格的左上角相对坐标 (normalize 到 0, 1 之間的情況)
+            delta_xy = (cxcy_sample -xy)/cell_size  # 與 grid 左上角的差距 (以 grid 為單位的情況下, 但也只會介於 0, 1 之間)
             target[int(ij[1]),int(ij[0]),2:4] = wh[i]
-            target[int(ij[1]),int(ij[0]),:2] = delta_xy
-            target[int(ij[1]),int(ij[0]),7:9] = wh[i]
+            target[int(ij[1]),int(ij[0]),:2] = delta_xy  # bbox center 與 grid 之左上角差距
+            target[int(ij[1]),int(ij[0]),7:9] = wh[i]  # bbox 的 width, height
             target[int(ij[1]),int(ij[0]),5:7] = delta_xy
         return target
+    
     def BGR2RGB(self,img):
         return cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
     def BGR2HSV(self,img):
@@ -247,7 +250,7 @@ class yoloDataset(data.Dataset):
 
 
     def subMean(self,bgr,mean):
-        mean = np.array(mean, dtype=np.float32)
+        mean = np.array(mean, dtype=np.float32)  # list to numpy array
         bgr = bgr - mean
         return bgr
 
