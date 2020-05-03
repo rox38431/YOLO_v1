@@ -70,7 +70,7 @@ class yoloLoss(nn.Module):
         # compute not contain obj loss
         noo_pred = pred_tensor[noo_mask].view(-1,30)
         noo_target = target_tensor[noo_mask].view(-1,30)
-        noo_pred_mask = torch.cuda.ByteTensor(noo_pred.size())  # 轉成 torch.Tensor 且放到 device 中 (ByteTensor 表示只能用 8bits 表示的 int)
+        noo_pred_mask = torch.cuda.BoolTensor(noo_pred.size())  # 轉成 torch.Tensor 且放到 device 中 (BoolTensor 表示只能用 8bits 表示的 int)
         noo_pred_mask.zero_()
         noo_pred_mask[:,4]=1;noo_pred_mask[:,9]=1
         noo_pred_c = noo_pred[noo_pred_mask]  #noo pred只需要计算 c 的损失 size[-1,2] (只有 noo_pred_mask 是 1 的位置會被拉出來, 變一維陣列)
@@ -78,9 +78,9 @@ class yoloLoss(nn.Module):
         nooobj_loss = F.mse_loss(noo_pred_c,noo_target_c,size_average=False)  # 不用開平方
 
         #compute contain obj loss
-        coo_response_mask = torch.cuda.ByteTensor(box_target.size())
+        coo_response_mask = torch.cuda.BoolTensor(box_target.size())
         coo_response_mask.zero_()
-        coo_not_response_mask = torch.cuda.ByteTensor(box_target.size())
+        coo_not_response_mask = torch.cuda.BoolTensor(box_target.size())
         coo_not_response_mask.zero_()
         box_target_iou = torch.zeros(box_target.size()).cuda()
         for i in range(0,box_target.size()[0],2): #choose the best iou box

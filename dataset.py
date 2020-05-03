@@ -20,7 +20,7 @@ import cv2
 import matplotlib.pyplot as plt
 
 class yoloDataset(data.Dataset):
-    image_size = 448
+    image_size = 224
     def __init__(self,root,list_file,train,transform):
         print('data init')
         self.root=root
@@ -61,7 +61,7 @@ class yoloDataset(data.Dataset):
 
     def __getitem__(self,idx):
         fname = self.fnames[idx]
-        img = cv2.imread(os.path.join(self.root+fname))  # cv2 讀出的順序是 [height, width, channel], 且 channel 存放順序是 BGR
+        img = cv2.imread(os.path.join(self.root + "\\" +fname))  # cv2 讀出的順序是 [height, width, channel], 且 channel 存放順序是 BGR
                                                          # PIL 則是 [width, height]
         boxes = self.boxes[idx].clone()
         labels = self.labels[idx].clone()
@@ -108,7 +108,7 @@ class yoloDataset(data.Dataset):
         labels (tensor) [...]
         return 7x7x30
         '''
-        grid_num = 14
+        grid_num = 7
         target = torch.zeros((grid_num,grid_num,30))
         cell_size = 1. / grid_num
         wh = boxes[:,2:]-boxes[:,:2]  # 得到 bbox 的 height, width
